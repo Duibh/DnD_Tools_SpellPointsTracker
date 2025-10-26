@@ -11,6 +11,8 @@ import java.util.Map;
 public class SpellPointsTracker extends Application {
 
     private int currentPoints = 0;
+    private int currentCasterLevel = 1;
+    private int maxSpellSlot = 1;
 
     // Spell point cost by spell level
     private final Map<Integer, Integer> spellCost = Map.ofEntries(
@@ -25,6 +27,14 @@ public class SpellPointsTracker extends Application {
         put(11, 73); put(12, 73); put(13, 83); put(14, 83); put(15, 94);
         put(16, 94); put(17, 107); put(18, 114); put(19, 123); put(20, 133);
     }};
+
+    // Maximum spell slot level per caster level
+    private static final Map<Integer, Integer> MAX_SPELL_SLOT_BY_LEVEL = Map.ofEntries(
+            Map.entry(1, 1), Map.entry(2, 1), Map.entry(3, 2), Map.entry(4, 2), Map.entry(5, 3),
+            Map.entry(6, 3), Map.entry(7, 4), Map.entry(8, 4), Map.entry(9, 5), Map.entry(10, 5),
+            Map.entry(11, 6), Map.entry(12, 6), Map.entry(13, 7), Map.entry(14, 7), Map.entry(15, 8),
+            Map.entry(16, 8), Map.entry(17, 9), Map.entry(18, 9), Map.entry(19, 9), Map.entry(20, 9)
+    );
 
     private Label spellPointsLabel;
     private Label errorLabel;
@@ -77,27 +87,42 @@ public class SpellPointsTracker extends Application {
     // --- Logic ---
 
     private void updateCasterLevel() {
-        int level = levelComboBox.getValue();
-        currentPoints = casterLevel.getOrDefault(level, 0);
-        spellPointsLabel.setText("Spell Points: " + currentPoints);
+        currentCasterLevel = levelComboBox.getValue();
+        currentPoints = casterLevel.getOrDefault(currentCasterLevel, 0);
+        maxSpellSlot = MAX_SPELL_SLOT_BY_LEVEL.getOrDefault(currentCasterLevel, 1);
+        spellPointsLabel.setText("Spell Points: " + currentPoints + " (Max slot: " + maxSpellSlot + ")");
         errorLabel.setText("");
     }
 
     private void modifyBySpellLevel() {
         try {
-            int spellLevel = Integer.parseInt(spellLevelInput.getText());
+            int spellLevel = Integer.parseInt(spellLevelInput.getText().trim());
             Integer cost = spellCost.get(spellLevel);
 
+            // Validate spell level exists in cost table
             if (cost == null) {
                 errorLabel.setText("Invalid spell level entered.");
                 return;
             }
 
-            currentPoints -= cost;
-            if (currentPoints < 0) currentPoints = 0;
+            // Enforce maximum spell slot restriction
+            if (spellLevel > maxSpellSlot) {
+                errorLabel.setText("You cannot create a spell slot higher than level " + maxSpellSlot + ".");
+                return;
+            }
 
-            spellPointsLabel.setText("Spell Points: " + currentPoints);
-            errorLabel.setText("");
+            // NEW: Ensure there are enough spell points before deducting
+            if (cost > currentPoints) {
+                errorLabel.setText("Not enough spell points. Needed: " + cost + ", available: " + currentPoints + ".");
+                return;
+            }
+
+            // All checks passed — deduct cost
+            currentPoints -= cost;
+            if (currentPoints < 0) currentPoints = 0; // defensive, should never hit because of check above
+
+            spellPointsLabel.setText("Spell Points: " + currentPoints + " (Max slot: " + maxSpellSlot + ")");
+            errorLabel.setText(""); // clear previous errors
 
         } catch (NumberFormatException ex) {
             errorLabel.setText("Please enter a valid number.");
@@ -105,9 +130,7 @@ public class SpellPointsTracker extends Application {
     }
 
     private void resetSpellPoints() {
-        currentPoints = 0;
-        spellPointsLabel.setText("Spell Points: " + currentPoints);
-        errorLabel.setText("");
+        updateCasterLevel();
     }
 
     public static void main(String[] args) {
