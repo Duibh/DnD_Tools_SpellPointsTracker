@@ -5,14 +5,19 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import javax.swing.*;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class SpellPointsTracker extends Application {
 
     private int currentPoints = 0;
     private int currentCasterLevel = 1;
     private int maxSpellSlot = 1;
+    private Set<Integer> usedHighLevelSlots = new HashSet<>();
 
     // Spell point cost by spell level
     private final Map<Integer, Integer> spellCost = Map.ofEntries(
@@ -38,6 +43,7 @@ public class SpellPointsTracker extends Application {
 
     private Label spellPointsLabel;
     private Label errorLabel;
+    private Label highLevelSlotsLabel;
     private ComboBox<Integer> levelComboBox;
     private TextField spellLevelInput;
 
@@ -49,6 +55,7 @@ public class SpellPointsTracker extends Application {
         spellPointsLabel = new Label("Spell Points: " + currentPoints);
         errorLabel = new Label();
         errorLabel.setStyle("-fx-text-fill: red;");
+        highLevelSlotsLabel = new Label("Used high-level slots: none");
 
         // Caster level dropdown
         Label casterLabel = new Label("Caster Level:");
@@ -57,7 +64,7 @@ public class SpellPointsTracker extends Application {
         levelComboBox.setValue(1);
         levelComboBox.setOnAction(e -> updateCasterLevel());
 
-        HBox casterBox = new HBox(10, casterLabel, levelComboBox);
+        HBox casterBox = new HBox(10, casterLabel, levelComboBox, spellPointsLabel);
         casterBox.setPadding(new Insets(10));
 
         // Modify spell points section
@@ -74,7 +81,7 @@ public class SpellPointsTracker extends Application {
         Button resetButton = new Button("Reset Spell Points");
         resetButton.setOnAction(e -> resetSpellPoints());
 
-        VBox layout = new VBox(15, casterBox, spellPointsLabel, modifyBox, resetButton, errorLabel);
+        VBox layout = new VBox(15, casterBox, modifyBox, resetButton, highLevelSlotsLabel, errorLabel);
         layout.setPadding(new Insets(15));
 
         Scene scene = new Scene(layout, 400, 220);
@@ -111,7 +118,13 @@ public class SpellPointsTracker extends Application {
                 return;
             }
 
-            // NEW: Ensure there are enough spell points before deducting
+            // Restrict one slot per level (6–9)
+            if (spellLevel >= 6 && usedHighLevelSlots.contains(spellLevel)) {
+                errorLabel.setText("You have already used your level " + spellLevel + " slot. Wait for a long rest.");
+                return;
+            }
+
+            // Ensure there are enough spell points before deducting
             if (cost > currentPoints) {
                 errorLabel.setText("Not enough spell points. Needed: " + cost + ", available: " + currentPoints + ".");
                 return;
@@ -119,18 +132,39 @@ public class SpellPointsTracker extends Application {
 
             // All checks passed — deduct cost
             currentPoints -= cost;
-            if (currentPoints < 0) currentPoints = 0; // defensive, should never hit because of check above
+            //if (currentPoints < 0) currentPoints = 0; // defensive, should never hit because of check above
 
             spellPointsLabel.setText("Spell Points: " + currentPoints + " (Max slot: " + maxSpellSlot + ")");
             errorLabel.setText(""); // clear previous errors
+
+            // Track high-level slot usage
+            if (spellLevel >= 6) {
+                usedHighLevelSlots.add(spellLevel);
+            }
+
+            updateHighLevelSlotsLabel();
 
         } catch (NumberFormatException ex) {
             errorLabel.setText("Please enter a valid number.");
         }
     }
 
+    private void updateHighLevelSlotsLabel() {
+        if (usedHighLevelSlots.isEmpty()) {
+            highLevelSlotsLabel.setText("Used high-level slots: none");
+        } else {
+            String used = usedHighLevelSlots.stream()
+                    .sorted()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(", "));
+            highLevelSlotsLabel.setText("Used high-level slots: " + used);
+        }
+    }
+
     private void resetSpellPoints() {
+        usedHighLevelSlots.clear();
         updateCasterLevel();
+        updateHighLevelSlotsLabel();
     }
 
     public static void main(String[] args) {
